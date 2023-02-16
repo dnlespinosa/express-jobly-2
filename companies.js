@@ -53,6 +53,44 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
 router.get("/", async function (req, res, next) {
   try {
     const companies = await Company.findAll();
+    let returnName = []
+    const body = req.body
+    if (body) {
+      // nameLike
+      if (Object.keys(body)[0]==='name') {
+        for (let company of companies) {
+          let keys = Object.keys(company)
+          for (let i=0; i<keys.length; i++) {
+            if (Object.keys(body)[0] === keys[i]) {
+              if (Object.values(company)[i].includes(Object.values(body).toString())) {
+                returnName.push(company)
+              }
+            }
+          }
+        }
+      }
+      // minEmployees
+      if(Object.keys(body)[0]==='minEmployees') {
+        for (let company of companies) {
+          if (company.numEmployees > body.minEmployees) {
+            returnName.push(company)
+          }
+        }
+      }
+      // maxEmployees
+      if(Object.keys(body)[0]==='maxEmployees') {
+        for (let company of companies) {
+          if (company.numEmployees < body.maxEmployees) {
+            returnName.push(company)
+          }
+        }
+      }
+
+      return res.json({ returnName })
+    }
+    
+
+
     return res.json({ companies });
   } catch (err) {
     return next(err);
@@ -118,3 +156,4 @@ router.delete("/:handle", ensureLoggedIn, ensureAdmin, async function (req, res,
 
 
 module.exports = router;
+
