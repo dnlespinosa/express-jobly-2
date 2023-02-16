@@ -1,52 +1,110 @@
-'use strict'
+'use strict';
 
-const db = require('../db');
-const { BadRequestError, NotFoundError } = require('../expressError');
 
-class Job {
-    static async create({ id, title, salary, equity, company_handle }) {
-        const duplicateCheck = await db.query(`SELECT id FROM jobs WHERE id=$1`, [id])
-        if (duplicateCheck.rows[0]) {
-            throw new BadRequestError('Duplicate job posting')
+const jsonschema = require("jsonschema");
+const express = require("express");
+
+const { BadRequestError } = require("../expressError");
+const { ensureLoggedIn, ensureAdmin } = require("../middleware/auth");
+const Job = require("../models/job");
+
+const jobNewSchema = require("../schemas/jobNew.json");
+const jobUpdateSchema = require("../schemas/jobUpdate.json");
+
+const router = new express.Router();
+
+router.post('/', ensureLoggedIn, async (req, res, next) => {
+    try{
+        const validator = jsonschema.validate(req.body, jobNewSchema)
+        if (!validator.valid) {
+            const errs = validator.errors.map(e => e.stack);
+            throw new BadRequestError(errs);
         }
 
-        const result = await db.query(`
-            INSERT INTO jobs (id, title, salary, equity, company_handle) 
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, title, salary, equity, company_handle    
-        `, [id, title, salary, equity, company_handle])
+        const job = await Job.create(req.body);
+        return res.status(201).json({ job })
+    } catch (err) {
+        return next(err)
+    }
+});
 
-        const job = result.rows[0]
-        return job;
+router.get('/', ensureLoggedIn, async (req, res, next) => {
+    try{
+        const jobs = await Job.findAll()
+
+        if (Object.keys(body) > 0) {
+            // nameLike
+            if (Object.keys(body)[0]==='title') {
+              for (let job of jobs) {
+                let keys = Object.keys(job)
+                for (let i=0; i<keys.length; i++) {
+                  if (Object.keys(body)[0] === keys[i]) {
+                    if (Object.values(job)[i].includes(Object.values(body).toString())) {
+                      returnName.push(job)
+                    }
+                  }
+                }
+              }
+            }
+            // minEmployees
+            if(Object.keys(body)[0]==='minSalary') {
+              for (let job of jobs) {
+                if (job.Salary > body.minSalary) {
+                  returnName.push(job)
+                }
+              }
+            }
+            // maxEmployees
+            if(Object.keys(body)[0]==='hasEquity') {
+              for (let job of jobs) {
+                if (job.equity > 0) {
+                  returnName.push(job)
+                }
+              }
+            }
+      
+            return res.json({ returnName })
+          }
+
+
+
+        return res.json({ jobs })
+    } catch (err) {
+        return next(err)
+    }
+});
+
+router.get('/:id', ensureLoggedIn, async (req, res, next) => {
+    try{
+        const job = await Job.get(req.params.id)
+        return res.json({ job })
+    } catch (err) {
+        return next(err)
+    }
+});
+
+router.patch('/:id', ensureLoggedIn, ensureAdmin, async (req, res, next) => {
+    try{
+        const validator = jsonschema.validate(req.body, jobUpdateSchema);
+    if (!validator.valid) {
+      const errs = validator.errors.map(e => e.stack);
+      throw new BadRequestError(errs);
     }
 
-    static async findAll() {
-        const jobRes = await db.query(`SELECT title, salary, equity, company_handle FROM jobs`)
-        return jobRes.rows;
+    const job = await Job.update(req.params.id, req.body)
+    return res.json({ job })
+    } catch (err) {
+        return next(err)
     }
+});
 
-    static async get(id) {
-        const jobRes = await db.query(`SELECT title, salary, equity, company_handle FROM jobs WHERE id=$1`, [id])
-        const job = jobRes.rows[0]
-        if (!job) throw new NotFoundError('DIDNT FIND THE JOB')
-
-        return job
+router.delete('/:id', ensureLoggedIn, async (req, res, next) => {
+    try{
+        await Job.remvoe(req.params.id);
+        return res.json({ deleted: req.params.id })
+    } catch (err) {
+        return next(err)
     }
+});
 
-    static async update(id, title, salary, equity, company_handle) {
-        const querySql = await db.query(`UPDATE jobs SET title=$1, salary=$2, equity=$3, company_handle=$4 WHERE id=$5 RETURNING title, salary, equity, company_handle`, [title, salary, equity, company_handle, id])
-        const job = querySql.rows[0];
-
-        if (!job) throw new NotFoundError('DIDNT FIND THE JOB');
-
-        return job;
-    }
-
-    static async remvoe(id) {
-        const result = await db.query(`DELETE FROM jobs WHERE id=$1 RETURNING id`, [id])
-        const job = result.rows[0]
-        if (!job) throw new NotFoundError('DIDNT FIND THE JOB');
-    }
-}
-
-module.exports = Job;
+module.exports=router;

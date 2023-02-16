@@ -1,13 +1,16 @@
 "use strict";
 
-const db = require("../db.js");
-const { BadRequestError, NotFoundError } = require("../expressError");
-const Job = require("./jobs.js");
+const request = require("supertest");
+
+const db = require("../db");
+const app = require("../app");
+
 const {
   commonBeforeAll,
   commonBeforeEach,
   commonAfterEach,
   commonAfterAll,
+  u1Token,
 } = require("./_testCommon");
 
 beforeAll(commonBeforeAll);
@@ -15,67 +18,67 @@ beforeEach(commonBeforeEach);
 afterEach(commonAfterEach);
 afterAll(commonAfterAll);
 
-describe('create', function () {
-    const newJob = {
-        id: 2, 
-        title: 'Test2', 
-        salary: 200, 
-        equity: '1.0', 
-        company_handle: 'c1'
-    }
-    test('works', async function () {
-        let job = await Job.create(newJob);
-        expect(job).toEqual(newJob);
-    })
-})
+// describe('POST /jobs', () => {
+//     const newJob = {
+//         id: 2, 
+//         title: 'TestTitle2',
+//         Salary: 500, 
+//         Equity: 1.0, 
+//         company_handle: 'c1'
+//     }
+//     test('ok for users', async () => {
+//         const resp = await request(app).post('/jobs').send(newJob).set('authorization', `Bearer ${u1Token}`);
+//         expect(resp.body).toEqual({
+//             job: newJob
+//         });
+//     })
+// })
 
-describe('findAll', function()  {
-    test('works', async () => {
-        let jobs = await Job.findAll();
-        expect(jobs).toEqual([
-            {
-                title: 'testTitle', 
-                salary: 100, 
-                equity: '1.0', 
+describe('GET /jobs', () => {
+    test('ok for anon', async () => {
+        const resp = await request(app).get('/jobs')
+        expect(resp.body).toEqual({
+            jobs: {
+                id: 1, 
+                title: 'TestJob1', 
+                salary: 500, 
+                equity: 1.0, 
                 company_handle: 'c1'
-            }
-        ])
-    })
-})
-
-describe('get', () => {
-    test('works', async () => {
-        let jobs = await Job.get(1);
-        expect(jobs).toEqual(
-            {
-                title: 'testTitle', 
-                salary: 100, 
-                equity: '1.0', 
-                company_handle: 'c1'
-            }
-        )
-    })
-})
-
-describe('update', () => {
-    const updateJob = {
-        title: 'testTitle2',
-        salary: 300, 
-        equity: '1.0', 
-        company_handle: 'c2'
-    }
-    test('works', async () => {
-        let job = await Job.update(1, updateJob.title, updateJob.salary, updateJob.equity, updateJob.company_handle)
-        expect(job).toEqual({ 
-            ...updateJob
+              }
         })
     })
 })
 
-describe('remove', () => {
-    test('works', async () => {
-        await Job.remvoe(1)
-        const res = await db.query('SELECT id FROM jobs WHERE id=1')
-        expect(res.rows.length).toEqual(0)
+describe('GET /jobs/:id', () => {
+    test('works for anon', async function() {
+        const resp = await request(app).get(`/jobs/1`);
+        expect(resp.body).toEqual({
+            id: 1, 
+            title: 'TestJob1', 
+            salary: 500, 
+            equity: 1.0, 
+            company_handle: 'c1'
+          }
+        )
+    })
+})
+
+describe('PATCH /jobs/:id', () => {
+    test('works for admins', async () => {
+        const resp = await request(app).patch(`/jobs/1`).send({title:'TestJob3"'}).set('authorization', `Bearer ${u1Token}`)
+        expect(resp.body).toEqual({
+            id: 1, 
+            title: 'TestJob3', 
+            salary: 500, 
+            equity: 1.0, 
+            company_handle: 'c1'
+          })
+    })
+})
+
+describe('DELETE /jobs/:id', () => {
+    test('works for admins', async () => {
+        const resp = await request(app).delete('/jobs/1').set('authorization', `Bearer ${u1Token}`)
+        expect(resp.body).toEqual({ deleted: 1});
     })
 })
