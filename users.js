@@ -43,6 +43,23 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
   }
 });
 
+router.post('/:username/jobs/:id', ensureLoggedIn, async (req, res, next) => {
+  try{
+    if (res.locals.user.isAdmin === true || res.locals.user.username === req.params.username) {
+      const validator = jsonschema.validate(req.body, userNewSchema);
+      if (!validator.valid) {
+        const errs = validator.errors.map(e => e.stack);
+        throw new BadRequestError(errs);
+      }
+
+      const application = await User.apply(req.body, 1)
+      return res.status(201).json({ application })
+    }
+  } catch (err) {
+    return next(err)
+  }
+})
+
 
 /** GET / => { users: [ {username, firstName, lastName, email }, ... ] }
  *
@@ -54,6 +71,7 @@ router.post("/", ensureLoggedIn, async function (req, res, next) {
 router.get("/", ensureLoggedIn, ensureAdmin, async function (req, res, next) {
   try {
     const users = await User.findAll();
+    
     return res.json({ users });
   } catch (err) {
     return next(err);
@@ -70,9 +88,10 @@ router.get("/", ensureLoggedIn, ensureAdmin, async function (req, res, next) {
 
 router.get("/:username", ensureLoggedIn, async function (req, res, next) {
   try {
-    if (req.user.isAdmin === true || req.user.username === req.params.username) {
+    if (res.locals.user.isAdmin === true || res.locals.user.username === req.params.username) {
       const user = await User.get(req.params.username);
-      return res.json({ user });
+      const jobs = await User.findApplications(req.params.username)
+      return res.json({ user, jobs });
     } else {
       return next({ status: 401, message: "Unauthorized" });
     }
@@ -94,7 +113,7 @@ router.get("/:username", ensureLoggedIn, async function (req, res, next) {
 
 router.patch("/:username", ensureLoggedIn, async function (req, res, next) {
   try {
-    if (req.user.isAdmin === true || req.user.username === req.params.username) {
+    if (res.locals.user.isAdmin === true || res.locals.user.username === req.params.username) {
       const validator = jsonschema.validate(req.body, userUpdateSchema);
       if (!validator.valid) {
         const errs = validator.errors.map(e => e.stack);
@@ -102,7 +121,8 @@ router.patch("/:username", ensureLoggedIn, async function (req, res, next) {
       }
 
       const user = await User.update(req.params.username, req.body);
-      return res.json({ user });
+      const jobs = await User.findApplications(req.params.username)
+      return res.json({ user, jobs });
     } else {
       return next({ status: 401, message: "Unauthorized" });
     }
@@ -119,7 +139,7 @@ router.patch("/:username", ensureLoggedIn, async function (req, res, next) {
 
 router.delete("/:username", ensureLoggedIn, async function (req, res, next) {
   try {
-    if (req.user.isAdmin === true || req.user.username === req.params.username) {
+    if (res.locals.user.isAdmin === true || res.locals.user.username === req.params.username) {
       await User.remove(req.params.username);
       return res.json({ deleted: req.params.username });
     } else {
